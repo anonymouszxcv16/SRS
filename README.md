@@ -1,4 +1,4 @@
-# _GFlowNets_ Policy.
+# _Markov_ flow policy.
 
 ## Usage
 ```
@@ -24,4 +24,4 @@ a = self.activ(self.l2(
 ```
 
 ## Results
-<img src="results/Ant_4.png" width="500" title="Ant">
+<img src="results/Ant_10.png" width="500" title="Ant">
