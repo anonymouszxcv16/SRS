@@ -15,10 +15,8 @@ Python 3.10.9
 
 ## Policy
 ```
-a = self.activ(self.l1(
-    a.abs()
-))
-a = self.activ(self.l2(
+a = self.activ(self.layer(
+    # Flow.
     a.abs()
 ))
 ```
