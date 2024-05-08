@@ -1,4 +1,4 @@
-# Markov flow policy -- Practical MCTS
+# Markov flow policy -- deep MC
 
 ## Usage
 ```
