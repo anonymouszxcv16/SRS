@@ -81,7 +81,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # RL
-    parser.add_argument("--policy", default="ORL", type=str)
+    parser.add_argument("--policy", default="GFN", type=str)
+    parser.add_argument("--exploration_noise", default=.1, type=float)
+    parser.add_argument("--discount", default=.99, type=float)
     parser.add_argument("--env", default="HumanoidStandup-v2", type=str)
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument('--use_checkpoints', default=True)
@@ -91,7 +93,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_freq", default=5_000, type=int)
     parser.add_argument("--eval_eps", default=10, type=int)
     parser.add_argument("--max_timesteps", default=1e6, type=int)
-    parser.add_argument("--N", default=2, type=int)
+    parser.add_argument("--N", default=1, type=int)
     parser.add_argument("--buffer_size", default=1e6, type=int)
 
     # File

@@ -14,9 +14,7 @@ class Hyperparameters:
 	# Generic
 	batch_size: int = 256
 	buffer_size: int = 1e6
-	discount: float = 0.99
 	target_update_rate: int = 250
-	exploration_noise: float = 0.1
 	
 	# TD3
 	target_policy_noise: float = 0.2
@@ -83,8 +81,11 @@ class Actor(nn.Module):
 		a = self.activ(self.l2(
 			a.abs() if "GFN" in self.args.policy else a
 		))
+		a = self.l3(
+			a.abs() if "GFN" in self.args.policy else a
+		)
 
-		return torch.tanh(self.l3(a))
+		return torch.tanh(a)
 
 
 class Encoder(nn.Module):
@@ -143,16 +144,17 @@ class Critic(nn.Module):
 			q = AvgL1Norm(self.q0[i](sa))
 			q = torch.cat([q, embeddings], 1)
 
-			if "GFN" is self.args.policy:
-				q = self.activ(self.q1[i](q).abs())
-				q = self.activ(self.q2[i](q).abs())
-				q = self.q3[i](q).abs()
-			else:
-				q = self.activ(self.q1[i](q))
-				q = self.activ(self.q2[i](q))
-				q = self.q3[i](q)
+			q = self.activ(self.q1[i](
+				q.abs() if "GFN" in self.args.policy else q
+			))
+			q = self.activ(self.q2[i](
+				q.abs() if "GFN" in self.args.policy else q
+			))
+			q = self.q3[i](
+				q.abs() if "GFN" in self.args.policy else q
+			)
 
-			q_values.append(q)
+		q_values.append(q)
 
 		return torch.cat([q_value for q_value in q_values], 1)
 
@@ -218,7 +220,7 @@ class Agent(object):
 				action = self.checkpoint_actor(state, zs)
 
 			if use_exploration: 
-				action = action + torch.randn_like(action) * self.hp.exploration_noise
+				action = action + torch.randn_like(action) * self.args.exploration_noise
 
 			return action.clamp(-1, 1).cpu().data.numpy().flatten() * self.max_action
 
@@ -265,7 +267,7 @@ class Agent(object):
 			fixed_zsa = self.fixed_encoder.zsa(fixed_zs, action)
 
 			Q_target_next = self.get_q_target(Q_next)
-			Q_target = reward + not_done * self.hp.discount * Q_target_next
+			Q_target = reward + not_done * self.args.discount * Q_target_next
 
 			if "TD7" in self.args.policy:
 				self.max, self.min = max(self.max, float(Q_target.max())), min(self.min, float(Q_target.min()))
