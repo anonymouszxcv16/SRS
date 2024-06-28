@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 
+# Replay buffer
 class LAP(object):
 	def __init__(
 		self,
@@ -15,7 +16,8 @@ class LAP(object):
 		normalize_actions=True,
 		prioritized=True
 	):
-	
+
+		# Parameters.
 		max_size = int(max_size)
 		self.max_size = max_size
 		self.ptr = 0
@@ -24,6 +26,7 @@ class LAP(object):
 		self.device = device
 		self.batch_size = batch_size
 
+		# Memory
 		self.state = np.zeros((max_size, state_dim))
 		self.action = np.zeros((max_size, action_dim))
 		self.next_state = np.zeros((max_size, state_dim))
@@ -40,7 +43,8 @@ class LAP(object):
 		self.normalize_actions = max_action if normalize_actions else 1
 
 		self.args = args
-	
+
+	# Add tuple.
 	def add(self, state, action, next_state, reward, done):
 		self.state[self.ptr] = state
 		self.action[self.ptr] = action / self.normalize_actions
@@ -54,6 +58,7 @@ class LAP(object):
 		self.ptr = (self.ptr + 1) % self.max_size
 		self.size = min(self.size + 1, self.max_size)
 
+	# Sample tuple.
 	def sample(self):
 		if self.prioritized:
 			csum = torch.cumsum(self.priority[:self.size], 0)
@@ -77,3 +82,15 @@ class LAP(object):
 
 	def reset_max_priority(self):
 		self.max_priority = float(self.priority[:self.size].max())
+
+	# Load offline dataset.
+	def load_D4RL(self, dataset):
+		self.state = dataset['observations']
+		self.action = dataset['actions']
+		self.next_state = dataset['next_observations']
+		self.reward = dataset['rewards'].reshape(-1, 1)
+		self.not_done = 1. - dataset['terminals'].reshape(-1, 1)
+		self.size = self.state.shape[0]
+
+		if self.prioritized:
+			self.priority = torch.ones(self.size).to(self.device)

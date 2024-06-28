@@ -1,9 +1,4 @@
-# Markov flow policy -- deep MC
-
-## Usage
-```
-sh ./experiment.sh <Environment>
-```
+# SPR -- Softplus reward function.
 
 ## Installation
 ```
