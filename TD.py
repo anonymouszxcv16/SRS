@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchrl
 import buffer
+import gym
 
 from dataclasses import dataclass
 from typing import Callable
@@ -201,17 +202,6 @@ class Critic(nn.Module):
 		return torch.cat([q_value for q_value in q_values], 1)
 
 
-# Softplus.
-class Softplus(nn.Module):
-	def __init__(self, args):
-		super(Softplus, self).__init__()
-
-		self.args = args
-
-	def forward(self, reward):
-		return (1 + (reward * self.args.alpha_softplus).exp()).log()
-
-
 class Agent(object):
 	def __init__(self, state_dim, action_dim, max_action, args, hp=Hyperparameters()):
 		# Changing hyperparameters example: hp=Hyperparameters(batch_size=128)
@@ -242,9 +232,6 @@ class Agent(object):
 		self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.hp.critic_lr)
 		self.critic_target = copy.deepcopy(self.critic)
 
-		# Softplus
-		self.softplus = Softplus(args=self.args)
-
 		# Encoder
 		self.encoder = Encoder(self.state_dim, self.action_dim, self.args, self.hp.zs_dim, self.hp.enc_hdim, self.hp.enc_activ).to(self.device)
 		self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), lr=self.hp.encoder_lr)
@@ -270,10 +257,6 @@ class Agent(object):
 		self.min = 1e8
 		self.max_target = 0
 		self.min_target = 0
-
-		# Logs.
-		self.losses = []
-
 
 	def select_action(self, state, use_checkpoint=False, use_exploration=True, deterministic=True):
 		with torch.no_grad():
@@ -335,12 +318,13 @@ class Agent(object):
 				Q_target_next = Q_target_next.clamp(self.min_target, self.max_target)
 
 			# Q-targets.
-			reward = self.softplus(reward) if "SP" in self.args.policy else reward
+			reward -= self.replay_buffer.reward[:self.replay_buffer.size].mean() if "RC" in self.args.policy else 0
+			reward /= self.replay_buffer.reward[:self.replay_buffer.size].max() if "SP" in self.args.policy else 0
+			reward = (1 + reward.exp()).log() if "SP" in self.args.policy else reward
 
 			entropy_bonus = -self.args.alpha_sac * next_action_log_prob if "SAC" in self.args.policy else 0
-			std_q_target = self.args.alpha_sqt * Q_next.std(dim=1).mean() if "SQT" in self.args.policy else 0
 
-			Q_target_next = Q_target_next + entropy_bonus - std_q_target
+			Q_target_next = Q_target_next + entropy_bonus
 			Q_target = reward + not_done * self.args.discount * Q_target_next
 
 			if "TD7" in self.args.policy:
@@ -349,9 +333,6 @@ class Agent(object):
 		# TD loss.
 		Q = self.critic(state, action, fixed_zsa, fixed_zs)
 		td_loss = (Q - Q_target).abs()
-
-		# Losses.
-		self.losses.append(td_loss.mean().item())
 
 		# Critic step.
 		critic_loss = LAP_huber(td_loss)

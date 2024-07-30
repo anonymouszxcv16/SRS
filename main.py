@@ -105,8 +105,13 @@ def maybe_evaluate_and_print(RL_agent, eval_env, evals, times, t, start_time, ar
         score = eval_env.get_normalized_score(total_reward.mean()) * 100 if d4rl else total_reward.mean()
 
         # PCA
-        states_PCA = pca.fit_transform(RL_agent.replay_buffer.state)
-        states_PCA_x, states_pca_y = list(states_PCA[:, 0]), list(states_PCA[:, 1])
+        if t % args.pca_freq == 0 and t > 0:
+            states_pca = pca.fit_transform(RL_agent.replay_buffer.state)
+            pca_x, pca_y = list(states_pca[:, 0]), list(states_pca[:, 1])
+
+            # file.
+            with open(f"./results/{args.env}/{args.file_name}_PCA", "w") as file:
+                file.write(f"{pca_x}\n{pca_y}")
 
         print(f"Timesteps: {(t + 1):,.1f}\tMinutes {time_total:.1f}\tRewards: {score:,.1f}")
 
@@ -116,14 +121,14 @@ def maybe_evaluate_and_print(RL_agent, eval_env, evals, times, t, start_time, ar
 
         # file.
         with open(f"./results/{args.env}/{args.file_name}", "w") as file:
-            file.write(f"{evals}\n{times}\n{states_PCA_x}\n{states_pca_y}")
+            file.write(f"{evals}\n{times}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Algorithm.
-    parser.add_argument("--policy", default="SP", type=str)
+    parser.add_argument("--policy", default="DDPG_SPO", type=str)
     parser.add_argument('--use_checkpoints', default=True)
 
     # Exploration.
@@ -136,10 +141,11 @@ if __name__ == "__main__":
     # Q-target parameters.
     parser.add_argument("--alpha_sac", default=.2, type=float)
 
-    parser.add_argument("--alpha_softplus", default=1, type=float)
+    # PCA
+    parser.add_argument("--pca_freq", default=int(1e6), type=int)
 
     # Environment.
-    parser.add_argument("--env", default="HumanoidStandup-v2", type=str)
+    parser.add_argument("--env", default="HalfCheetah-v2", type=str)
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--offline", default=0, type=int)
     parser.add_argument('--d4rl_path', default="./d4rl_datasets", type=str)
@@ -170,11 +176,6 @@ if __name__ == "__main__":
     env = gym.make(args.env)
     eval_env = gym.make(args.env)
 
-    print("---------------------------------------")
-    print(f"Algorithm: {args.policy}, Buffer size: {args.buffer_size:,.1f}, Environment: {args.env}, Seed: {args.seed}, "
-          f"Alpha SAC: {args.alpha_sac}, Alpha Softplus: {args.alpha_softplus}")
-    print("---------------------------------------")
-
     # Seed.
     env.seed(args.seed)
     env.action_space.seed(args.seed)
@@ -193,6 +194,10 @@ if __name__ == "__main__":
 
     RL_agent = TD.Agent(state_dim, action_dim, max_action, args)
     name = f"{args.policy}_{args.env}_{args.seed}"
+
+    print("---------------------------------------")
+    print(f"Algorithm: {args.policy}, Buffer size: {args.buffer_size:,.1f}, Environment: {args.env}, Seed: {args.seed}, Device: {RL_agent.device}")
+    print("---------------------------------------")
 
     pca = PCA(n_components=2)
 

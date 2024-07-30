@@ -42,7 +42,16 @@ class LAP(object):
 
 		self.normalize_actions = max_action if normalize_actions else 1
 
+		self.state_dim = state_dim
+		self.action_dim = action_dim
 		self.args = args
+
+	def reset(self):
+		self.state = np.zeros((self.max_size, self.state_dim))
+		self.action = np.zeros((self.max_size, self.action_dim))
+		self.next_state = np.zeros((self.max_size, self.state_dim))
+		self.reward = np.zeros((self.max_size, 1))
+		self.not_done = np.zeros((self.max_size, 1))
 
 	# Add tuple.
 	def add(self, state, action, next_state, reward, done):
