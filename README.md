@@ -1,4 +1,4 @@
-# SPR -- Softplus reward function.
+# Capsule Rewards.
 
 ## Installation
 ```
