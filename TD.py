@@ -74,10 +74,10 @@ class Actor(nn.Module):
 		self.activ = activ
 
 		# Noisy linear.
-		self.l0 = torchrl.modules.NoisyLinear(state_dim, hdim) if "NL" in args.policy else nn.Linear(state_dim, hdim)
-		self.l1 = torchrl.modules.NoisyLinear(zs_dim + hdim, hdim) if "NL" in args.policy else nn.Linear(zs_dim + hdim, hdim)
-		self.l2 = torchrl.modules.NoisyLinear(hdim, hdim) if "NL" in args.policy else nn.Linear(hdim, hdim)
-		self.l3 = torchrl.modules.NoisyLinear(hdim, action_dim) if "NL" in args.policy else nn.Linear(hdim, action_dim)
+		self.l0 = nn.Linear(state_dim, hdim)
+		self.l1 = nn.Linear(zs_dim + hdim, hdim)
+		self.l2 = nn.Linear(hdim, hdim)
+		self.l3 = nn.Linear(hdim, action_dim)
 
 		self.log_std = nn.Linear(hdim, action_dim)
 
