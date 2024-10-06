@@ -2,12 +2,9 @@ import argparse
 import os
 import time
 import gym
-import pybullet_envs
 import numpy as np
 import torch
 import TD
-
-from sklearn.decomposition import PCA
 
 
 # Train online RL agent.
@@ -63,24 +60,6 @@ def train_online(RL_agent, env, eval_env, args):
             ep_num += 1
 
 
-# Offline RL agent train.
-def train_offline(RL_agent, env, eval_env, args):
-    # Performance.
-    evals = []
-    times = []
-
-    # Load offline dataset.
-    RL_agent.replay_buffer.load_D4RL(d4rl.qlearning_dataset(env))
-    start_time = time.time()
-
-    # Train loop.
-    for t in range(int(args.max_timesteps + 1)):
-        maybe_evaluate_and_print(RL_agent, eval_env, evals, times, t, start_time, args, d4rl=True)
-
-        # Train.
-        RL_agent.train()
-
-
 # Logs.
 def maybe_evaluate_and_print(RL_agent, eval_env, evals, times, t, start_time, args, d4rl=False):
     if t % args.eval_freq == 0:
@@ -119,7 +98,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Algorithm.
-    parser.add_argument("--policy", default="SP", type=str)
+    parser.add_argument("--policy", default="SN", type=str)
     parser.add_argument('--use_checkpoints', default=True)
 
     # Exploration.
@@ -135,8 +114,6 @@ if __name__ == "__main__":
     # Environment.
     parser.add_argument("--env", default="HumanoidStandup-v2", type=str)
     parser.add_argument("--seed", default=0, type=int)
-    parser.add_argument("--offline", default=0, type=int)
-    parser.add_argument('--d4rl_path', default="./d4rl_datasets", type=str)
 
     # Evaluation
     parser.add_argument("--eval_freq", default=5_000, type=int)
@@ -153,12 +130,6 @@ if __name__ == "__main__":
     if not os.path.exists(f"./results/{args.env}"):
         os.makedirs(f"./results/{args.env}")
 
-    # Offline.
-    if args.offline:
-        import d4rl
-
-        d4rl.set_dataset_path(args.d4rl_path)
-        args.use_checkpoints = False
 
     # environment
     env = gym.make(args.env)
@@ -188,7 +159,4 @@ if __name__ == "__main__":
     print("---------------------------------------")
 
     # Optimize.
-    if args.offline == 1:
-        train_offline(RL_agent, env, eval_env, args)
-    else:
-        train_online(RL_agent, env, eval_env, args)
+    train_online(RL_agent, env, eval_env, args)

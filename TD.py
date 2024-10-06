@@ -1,4 +1,6 @@
 import copy
+import random
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -168,12 +170,10 @@ class Critic(nn.Module):
 		self.activ = activ
 
 		# Fully connected.
-		self.q0 = nn.ParameterList([torchrl.modules.NoisyLinear(state_dim + action_dim, hdim) if "NL" in args.policy else
-									nn.Linear(state_dim + action_dim, hdim) for _ in range(args.N)])
-		self.q1 = nn.ParameterList([torchrl.modules.NoisyLinear(2 * zs_dim + hdim, hdim) if "NL" in args.policy else
-									nn.Linear(2 * zs_dim + hdim, hdim) for _ in range(args.N)])
-		self.q2 = nn.ParameterList([torchrl.modules.NoisyLinear(hdim, hdim) if "NL" in args.policy else nn.Linear(hdim, hdim) for _ in range(args.N)])
-		self.q3 = nn.ParameterList([torchrl.modules.NoisyLinear(hdim, 1) if "NL" in args.policy else nn.Linear(hdim, 1) for _ in range(args.N)])
+		self.q0 = nn.ParameterList([nn.Linear(state_dim + action_dim, hdim) for _ in range(args.N)])
+		self.q1 = nn.ParameterList([nn.Linear(2 * zs_dim + hdim, hdim) for _ in range(args.N)])
+		self.q2 = nn.ParameterList([nn.Linear(hdim, hdim) for _ in range(args.N)])
+		self.q3 = nn.ParameterList([nn.Linear(hdim, 1) for _ in range(args.N)])
 
 		self.args = args
 
@@ -256,9 +256,6 @@ class Agent(object):
 		self.max_target = 0
 		self.min_target = 0
 
-		# Logs.
-		self.losses = []
-
 
 	def select_action(self, state, use_checkpoint=False, use_exploration=True, deterministic=True):
 		with torch.no_grad():
@@ -272,7 +269,7 @@ class Agent(object):
 				action, _ = self.checkpoint_actor(state, zs, deterministic=deterministic)
 
 			if use_exploration:
-				noise = torch.randn_like(action) * (0 if ("NL" in self.args.policy or "SAC" in self.args.policy) else self.args.exploration_noise)
+				noise = torch.randn_like(action) * (0 if "SAC" in self.args.policy else self.args.exploration_noise)
 				action = action + noise
 
 			return action.clamp(-1, 1).cpu().data.numpy().flatten() * self.max_action
@@ -302,8 +299,7 @@ class Agent(object):
 			next_action, next_action_log_prob = self.actor_target(next_state, fixed_target_zs, deterministic=False if "SAC" in self.args.policy else True)
 
 			# Noise.
-			noise = (torch.randn_like(action) * (0 if ("NL" in self.args.policy or "SAC" in self.args.policy) else
-												 self.hp.target_policy_noise)).clamp(-self.hp.noise_clip, self.hp.noise_clip)
+			noise = (torch.randn_like(action) * (0 if "SAC" in self.args.policy else self.hp.target_policy_noise)).clamp(-self.hp.noise_clip, self.hp.noise_clip)
 
 			# Q-target.
 			next_action = (next_action + noise).clamp(-1, 1)
@@ -320,15 +316,16 @@ class Agent(object):
 				Q_target_next = Q_target_next.clamp(self.min_target, self.max_target)
 
 			# Q-targets.
-			mean, max = self.replay_buffer.reward[:self.replay_buffer.size].mean(), self.replay_buffer.reward[:self.replay_buffer.size].max()
+			rewards_mean, rewards_max = self.replay_buffer.reward[:self.replay_buffer.size].mean(), self.replay_buffer.reward[:self.replay_buffer.size].max()
+			reward = reward.expand((self.replay_buffer.batch_size, self.args.N)).clone()
+			sampled_idx = random.randint(0, self.args.N - 1)
 
-			reward -= mean if "RC" in self.args.policy and not "SP" in self.args.policy else 0
-			reward = (1 + ((reward - mean) / max).exp()).log() if "SP" in self.args.policy else reward
+			# Softplus Normalized
+			reward[:, sampled_idx] = (1 + ((reward[:, sampled_idx] - rewards_mean) / rewards_max).exp()).log() if "SN" in self.args.policy else reward[:, sampled_idx]
 
 			entropy_bonus = -self.args.alpha_sac * next_action_log_prob if "SAC" in self.args.policy else 0
-			std_q_target = self.args.alpha_sqt * Q_next.std(dim=1).mean() if "SQT" in self.args.policy else 0
 
-			Q_target_next = Q_target_next + entropy_bonus - std_q_target
+			Q_target_next = Q_target_next + entropy_bonus
 			Q_target = reward + not_done * self.args.discount * Q_target_next
 
 			if "TD7" in self.args.policy:
@@ -337,9 +334,6 @@ class Agent(object):
 		# TD loss.
 		Q = self.critic(state, action, fixed_zsa, fixed_zs)
 		td_loss = (Q - Q_target).abs()
-
-		# Losses.
-		self.losses.append(td_loss.mean().item())
 
 		# Critic step.
 		critic_loss = LAP_huber(td_loss)
@@ -364,11 +358,6 @@ class Agent(object):
 				Q += entropy_bonus
 
 			actor_loss = -Q.mean()
-
-			# BC
-			if self.args.offline == 1 and ("BC" in self.args.policy or "TD7" in self.args.policy):
-				BC_loss = F.mse_loss(actor, action)
-				actor_loss += self.hp.lmbda * Q.abs().mean().detach() * BC_loss
 
 			self.actor_optimizer.zero_grad()
 			actor_loss.backward()
