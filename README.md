@@ -1,4 +1,4 @@
-# Capsule Rewards.
+# Softplus-Normalized.
 
 ## Installation
 ```
