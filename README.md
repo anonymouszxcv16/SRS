@@ -1,4 +1,4 @@
-# Softplus-Normalized.
+# Softplus Reward Shaping (SRS).
 
 ## Installation
 ```
