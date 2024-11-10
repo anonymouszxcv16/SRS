@@ -60,9 +60,29 @@ def train_online(RL_agent, env, eval_env, args):
             ep_num += 1
 
 
+def train_offline(RL_agent, env, eval_env, args):
+    # Performance.
+    evals = []
+    times = []
+
+    # Load offline dataset.
+    RL_agent.replay_buffer.load_D4RL(d4rl.qlearning_dataset(env))
+    start_time = time.time()
+
+    # Train loop.
+    for t in range(int(args.max_timesteps + 1)):
+        maybe_evaluate_and_print(RL_agent, eval_env, evals, times, t, start_time, args, d4rl=True)
+
+        # Train.
+        RL_agent.train()
+
 # Logs.
 def maybe_evaluate_and_print(RL_agent, eval_env, evals, times, t, start_time, args, d4rl=False):
     if t % args.eval_freq == 0:
+        std = RL_agent.std / args.eval_freq
+        RL_agent.stds.append(std)
+        RL_agent.std = 0
+
         total_reward = np.zeros(args.eval_eps)
 
         for ep in range(args.eval_eps):
@@ -83,7 +103,7 @@ def maybe_evaluate_and_print(RL_agent, eval_env, evals, times, t, start_time, ar
         time_total = (time.time() - start_time) / 60
         score = eval_env.get_normalized_score(total_reward.mean()) * 100 if d4rl else total_reward.mean()
 
-        print(f"Timesteps: {(t + 1):,.1f}\tMinutes {time_total:.1f}\tRewards: {score:,.1f}")
+        print(f"Timesteps: {(t + 1):,.1f}\tMinutes {time_total:.1f}\tRewards: {score:,.1f}\tStd: {std:,.1f}")
 
         # Performance
         evals.append(score)
@@ -91,7 +111,7 @@ def maybe_evaluate_and_print(RL_agent, eval_env, evals, times, t, start_time, ar
 
         # file.
         with open(f"./results/{args.env}/{args.file_name}", "w") as file:
-            file.write(f"{evals}\n{times}")
+            file.write(f"{evals}\n{times}\n{RL_agent.stds}\nAlpha: {RL_agent.args.alpha}")
 
 
 if __name__ == "__main__":
@@ -99,6 +119,7 @@ if __name__ == "__main__":
 
     # Algorithm.
     parser.add_argument("--policy", default="SN", type=str)
+    parser.add_argument("--alpha", default=1, type=float)
     parser.add_argument('--use_checkpoints', default=True)
 
     # Exploration.
@@ -113,7 +134,9 @@ if __name__ == "__main__":
 
     # Environment.
     parser.add_argument("--env", default="HumanoidStandup-v2", type=str)
+    parser.add_argument("--offline", default=0, type=int)
     parser.add_argument("--seed", default=0, type=int)
+    parser.add_argument('--d4rl_path', default="./d4rl_datasets", type=str)
 
     # Evaluation
     parser.add_argument("--eval_freq", default=5_000, type=int)
@@ -130,6 +153,12 @@ if __name__ == "__main__":
     if not os.path.exists(f"./results/{args.env}"):
         os.makedirs(f"./results/{args.env}")
 
+    # Offline.
+    if args.offline == 1:
+        import d4rl
+
+        d4rl.set_dataset_path(args.d4rl_path)
+        args.use_checkpoints = False
 
     # environment
     env = gym.make(args.env)
@@ -155,8 +184,12 @@ if __name__ == "__main__":
     name = f"{args.policy}_{args.env}_{args.seed}"
 
     print("---------------------------------------")
-    print(f"Algorithm: {args.policy}, Buffer size: {args.buffer_size:,.1f}, Environment: {args.env}, Seed: {args.seed}, Device: {RL_agent.device}")
+    print(f"Algorithm: {args.policy}, Alpha: {args.alpha}, Buffer size: {args.buffer_size:,.1f}, Environment: {args.env}, Seed: {args.seed}, "
+          f"Device: {RL_agent.device}")
     print("---------------------------------------")
 
     # Optimize.
-    train_online(RL_agent, env, eval_env, args)
+    if args.offline == 1:
+        train_offline(RL_agent, env, eval_env, args)
+    else:
+        train_online(RL_agent, env, eval_env, args)

@@ -256,6 +256,10 @@ class Agent(object):
 		self.max_target = 0
 		self.min_target = 0
 
+		# Std
+		self.stds = []
+		self.std = 0
+
 
 	def select_action(self, state, use_checkpoint=False, use_exploration=True, deterministic=True):
 		with torch.no_grad():
@@ -311,6 +315,8 @@ class Agent(object):
 			# TD3
 			Q_target_next = Q_next.min(1, keepdim=True)[0]
 
+			self.std += Q_next.std(dim=1).mean().item()
+
 			if "TD7" in self.args.policy:
 				# TD7
 				Q_target_next = Q_target_next.clamp(self.min_target, self.max_target)
@@ -318,10 +324,12 @@ class Agent(object):
 			# Q-targets.
 			rewards_mean, rewards_max = self.replay_buffer.reward[:self.replay_buffer.size].mean(), self.replay_buffer.reward[:self.replay_buffer.size].max()
 			reward = reward.expand((self.replay_buffer.batch_size, self.args.N)).clone()
-			sampled_idx = random.randint(0, self.args.N - 1)
 
 			# Softplus Normalized
-			reward[:, sampled_idx] = (1 + ((reward[:, sampled_idx] - rewards_mean) / rewards_max).exp()).log() if "SN" in self.args.policy else reward[:, sampled_idx]
+			if "SN" in self.args.policy:
+				reward = (1 / self.args.alpha) * (1 + (self.args.alpha * ((reward - rewards_mean) / rewards_max)).exp()).log()
+			elif "SNA" in self.args.policy:
+				reward = (1 / self.args.alpha) * (1 + (self.args.alpha * reward / rewards_max).exp()).log()
 
 			entropy_bonus = -self.args.alpha_sac * next_action_log_prob if "SAC" in self.args.policy else 0
 
@@ -346,6 +354,10 @@ class Agent(object):
 			priority = td_loss.max(1)[0].clamp(min=self.hp.min_priority).pow(self.hp.alpha)
 			self.replay_buffer.update_priority(priority)
 
+		# Actor gap
+		with torch.no_grad():
+			actor, _ = self.actor(state, fixed_zs)
+
 		# Update Actor.
 		if self.training_steps % self.hp.policy_freq == 0:
 			actor, log_prob_a_tilda = self.actor(state, fixed_zs)
@@ -358,6 +370,11 @@ class Agent(object):
 				Q += entropy_bonus
 
 			actor_loss = -Q.mean()
+
+			# BC
+			if self.args.offline == 1 and ("BC" in self.args.policy or "TD7" in self.args.policy):
+				BC_loss = F.mse_loss(actor, action)
+				actor_loss += self.hp.lmbda * Q.abs().mean().detach() * BC_loss
 
 			self.actor_optimizer.zero_grad()
 			actor_loss.backward()
