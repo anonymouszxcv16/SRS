@@ -44,6 +44,23 @@ class LAP(object):
 
 		self.args = args
 
+	# States std.
+	def get_std_states(self, eval_freq):
+		# Collected states.
+		states = self.state[self.ptr - eval_freq:self.ptr, :]
+		std_tot = 0
+
+		# State dims.
+		for idx_dim in range(states.shape[1]):
+			state_dim = states[:, idx_dim]
+
+			# Dim std.
+			std_tot += state_dim.std() if len(list(state_dim)) > 0 else 0
+
+		# Average.
+		return std_tot / states.shape[1]
+
+
 	# Add tuple.
 	def add(self, state, action, next_state, reward, done):
 		self.state[self.ptr] = state
@@ -59,14 +76,14 @@ class LAP(object):
 		self.size = min(self.size + 1, self.max_size)
 
 	# Sample tuple.
-	def sample(self):
+	def sample(self, size=256):
 		if self.prioritized:
 			csum = torch.cumsum(self.priority[:self.size], 0)
-			val = torch.rand(size=(self.batch_size,), device=self.device) * csum[-1]
+			val = torch.rand(size=(size,), device=self.device) * csum[-1]
 			self.ind = torch.searchsorted(csum, val).cpu().data.numpy()
 
 		else:
-			self.ind = np.random.randint(0, self.size, size=self.batch_size)
+			self.ind = np.random.randint(0, self.size, size=size)
 
 		return (
 			torch.tensor(self.state[self.ind], dtype=torch.float, device=self.device),

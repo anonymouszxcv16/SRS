@@ -1,10 +1,7 @@
 import copy
-import random
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchrl
 import buffer
 
 from dataclasses import dataclass
@@ -328,8 +325,8 @@ class Agent(object):
 			# Softplus Normalized
 			if "SN" in self.args.policy:
 				reward = (1 / self.args.alpha) * (1 + (self.args.alpha * ((reward - rewards_mean) / rewards_max)).exp()).log()
-			elif "SNA" in self.args.policy:
-				reward = (1 / self.args.alpha) * (1 + (self.args.alpha * reward / rewards_max).exp()).log()
+			elif "NRS" in self.args.policy:
+				reward = self.args.alpha * ((reward - rewards_mean) / rewards_max)
 
 			entropy_bonus = -self.args.alpha_sac * next_action_log_prob if "SAC" in self.args.policy else 0
 
