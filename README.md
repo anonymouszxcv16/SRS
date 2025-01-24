@@ -1,6 +1,6 @@
-# Softplus Reward Shaping (SRS).
+Adaptive Reward Shaping In Reinforcement Learning Using Normalized Softplus Functions.
 
-## Installation
+Installation.
 ```
 Gym 0.23.1
 MuJoCo 2.3.6
