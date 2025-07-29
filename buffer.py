@@ -44,27 +44,10 @@ class LAP(object):
 
 		self.args = args
 
-	# States std.
-	def get_std_states(self, eval_freq):
-		# Collected states.
-		states = self.state[self.ptr - eval_freq:self.ptr, :]
-		std_tot = 0
-
-		# State dims.
-		for idx_dim in range(states.shape[1]):
-			state_dim = states[:, idx_dim]
-
-			# Dim std.
-			std_tot += state_dim.std() if len(list(state_dim)) > 0 else 0
-
-		# Average.
-		return std_tot / states.shape[1]
-
-
 	# Add tuple.
 	def add(self, state, action, next_state, reward, done):
 		self.state[self.ptr] = state
-		self.action[self.ptr] = action / self.normalize_actions
+		self.action[self.ptr] = action
 		self.next_state[self.ptr] = next_state
 		self.reward[self.ptr] = reward
 		self.not_done[self.ptr] = 1. - done
