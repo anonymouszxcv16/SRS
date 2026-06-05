@@ -1,4 +1,4 @@
-# Adaptive Reward Shaping In Reinforcement Learning Using Normalized Softplus Functions.
+# Smooth Reward Shaping via Normalized Softplus Functions for Reinforcement Learning
 
 ## Installation.
 ```
