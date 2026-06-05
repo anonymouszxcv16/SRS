@@ -27,11 +27,12 @@ class LAP(object):
 		self.batch_size = batch_size
 
 		# Memory
-		self.state = np.zeros((max_size, state_dim))
-		self.action = np.zeros((max_size, action_dim))
-		self.next_state = np.zeros((max_size, state_dim))
-		self.reward = np.zeros((max_size, 1))
-		self.not_done = np.zeros((max_size, 1))
+		self.state = torch.zeros((max_size, state_dim)).to(args.device)
+		self.action = torch.zeros((max_size, action_dim)).to(args.device)
+		self.next_state = torch.zeros((max_size, state_dim)).to(args.device)
+		self.reward = torch.zeros((max_size, 1)).to(args.device)
+		self.not_done = torch.zeros((max_size, 1)).to(args.device)
+		self.mc_score = torch.zeros((max_size, 1)).to(args.device)
 
 		self.prioritized = prioritized
 
@@ -73,6 +74,7 @@ class LAP(object):
 			torch.tensor(self.action[self.ind], dtype=torch.float, device=self.device),
 			torch.tensor(self.next_state[self.ind], dtype=torch.float, device=self.device),
 			torch.tensor(self.reward[self.ind], dtype=torch.float, device=self.device),
+			torch.tensor(self.mc_score[self.ind], dtype=torch.float, device=self.device),
 			torch.tensor(self.not_done[self.ind], dtype=torch.float, device=self.device)
 		)
 
